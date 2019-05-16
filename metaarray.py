@@ -79,9 +79,9 @@ def main_mms_fpi():
     # Get the data file
     sdc = pymms.MrMMS_SDC_API('mms1', 'fpi', 'brst', 'l2', 
                               optdesc='des-moms', 
-                              start_date='2015-12-06T00:23:04', 
-                              end_date='2015-12-06T00:25:34')
-    sdc.offline = True
+                              start_date='2016-10-22', 
+                              end_date='2016-10-22T10:09:33')
+    sdc.offline = False
     file = sdc.Download()
     
     # Variable name
@@ -90,13 +90,9 @@ def main_mms_fpi():
     espec_vname = 'mms1_des_energyspectr_omni_brst'
     
     # Read data
-    N = pyarray.metabase.from_cdf(file, n_vname, cache=True, clobber=True)
-    V = pyarray.metabase.from_cdf(file, v_vname, cache=True, clobber=True)
+    N = pyarray.metabase.from_cdf(file, n_vname, cache=True)
+    V = pyarray.metabase.from_cdf(file, v_vname, cache=True)
     ESpec = pyarray.metabase.from_cdf(file, espec_vname, cache=True)
-    
-    print('N is cached', N.iscached())
-    print('V is cached', V.iscached())
-    print('ESpec is cached', ESpec.iscached())
     
     # Plot data
     pyarray.MetaCache.plot()

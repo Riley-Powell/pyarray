@@ -328,7 +328,7 @@ class MetaBase(np.ndarray):
 #                 print('{0:>4d}{1:<4}{2}'.format(idx, '', item.name))
 
 
-def from_cdf(files, variable, cache=False, clobber=False, name=''):
+def from_cdf(files, variable, cache=False, clobber=False, name=None):
     """
     Read variable data from a CDF file.
 
@@ -393,14 +393,15 @@ def _from_cdf_read_var(cdf, varname):
             var = pyarray.MetaTime(cdf_var[...])
         else:
             var = pyarray.MetaArray(cdf_var[...])
-        
-        var.name = varname
-        var.rec_vary = cdf_var.rv
     
         # Append to existing data
-        if varname in cdf_vars and cdf[varname].rv:
+        #   TODO: Add ufunc to MetaBase to np.append returns MetaBase sub/class
+        if varname in cdf_vars and cdf_var.rv():
             d0 = cdf_vars[varname]
-            np.append(var.y, d0, 0)
+            var = np.append(var, d0, 0).view(type(var))
+        
+        var.name = varname
+        var.rec_vary = cdf_var.rv()
     
         # Mark as read
         #  - Prevent infinite loop. Must save the variable in the registry
