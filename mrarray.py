@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 from matplotlib import image as img
 import pytz
 import re
+import pdb
 
 class MrArray(np.ndarray):
     
@@ -75,14 +76,15 @@ class MrArray(np.ndarray):
             obj = super(MrArray, self).__getitem__(dt)
             
             # Scalar index
+            # If scalar indices were given, obj will be a scalar (no attributes)
             if np.isscalar(dt):
                 pass
                 
-            # Index or slice multiple dimensions
-            # If scalar indices were given, obj will be a scalar (no attributes)
+            # Slice multiple dimensions
+            # Use the first dimensional slice to slice the time array
             elif isinstance(dt, tuple):
                 try:
-                    obj.t = self.t[dt[0]]
+                    obj.t = self.t[dt[-1]]
                 except AttributeError:
                     pass
             
@@ -94,6 +96,13 @@ class MrArray(np.ndarray):
         
         except (TypeError, IndexError) as e:
             raise
+        
+        # Assume a time was given
+        s = self.t.get_index_time[dt]
+        obj = super(MrArray, self).__getitem(s)
+        obj.t = self.t[s]
+        
+        return obj
         
         # it must be datetime
         # make sure it is a numpy datetime
@@ -113,6 +122,10 @@ class MrArray(np.ndarray):
         t_hi = self.t[idx]
         
         return x_lo + (x_hi - x_lo) * ((dt - t_lo) / (t_hi - t_lo))
+    
+    
+    def get_item_time(self, idx):
+        pass
     
     
     def __check_time(self, t):
@@ -341,6 +354,8 @@ def from_cdf(files, variable, cache=False, clobber=False, name=''):
     global cdf_vars
     global file_vars
     
+    if len(files) == 0:
+        raise ValueError('at least one valid file name must be given.')
     if isinstance(files, str):
         files = [files]
 
@@ -535,6 +550,7 @@ def plot(variables=[], layout=[]):
     
     # Display the figure
     plt.show()
+    return axes
 
 
 def main1():
@@ -555,14 +571,14 @@ def main1():
     print( ts.__class__.__bases__)
 
 
-def main_mms_fpi():
-    from pymms.pymms import MrMMS_SDC_API
+def test_plot_cached_vars():
+    from pymms.pymms import mrmms_sdc_api as api
     
     # Get the data file
-    sdc = MrMMS_SDC_API('mms1', 'fpi', 'brst', 'l2', 
-                        optdesc='des-moms', 
-                        start_date='2015-12-06T00:23:04', 
-                        end_date='2015-12-06T00:25:34')
+    sdc = api.MrMMS_SDC_API('mms1', 'fpi', 'brst', 'l2', 
+                            optdesc='des-moms', 
+                            start_date='2015-12-06T00:23:04', 
+                            end_date='2015-12-06T00:25:34')
     file = sdc.Download()
     
     # Variable name
@@ -576,7 +592,7 @@ def main_mms_fpi():
     ESPec = from_cdf(file, espec_vname, cache=True)
     
     # Plot data
-    plot()
+    axes = plot()
     
     return file
 

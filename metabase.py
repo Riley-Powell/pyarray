@@ -8,6 +8,7 @@ import numpy as np
 from spacepy import pycdf
 from matplotlib import pyplot as plt
 from matplotlib import image as img
+from matplotlib import dates as mdates
 import datetime as dt
 import pyarray
 import pdb
@@ -49,15 +50,20 @@ class MetaCache():
     
     @classmethod
     def get_unique_key(cls, key):
-        rex = re.compile(key + '(_(\d+))?$')
-        num = [re.match(rex, x).group(2) for x in cls._cache if re.match(rex, x)]
+        if key in cls._cache:
+            rex = re.compile(key + '(_(\d+))?$')
+            num = [re.match(rex, x).group(2) for x in cls._cache if re.match(rex, x)]
+            
+            if num[0] is None:
+                num = 1
+            else:
+                num = max(num) + 1
+            
+            new_key = key + '_' + str(num)
+        else:
+            new_key = key
         
-        try:
-            num = max(num)
-        except ValueError:
-            num = 0
-        
-        return key + '_' + str(num+1)
+        return new_key
     
     
     @classmethod
@@ -72,28 +78,28 @@ class MetaCache():
     
     @classmethod
     def plot(cls, variables=None, nrows=None, ncols=None):
-        if not variables:
+        if variables is None:
             variables = cls._cache.keys()
         if isinstance(variables, str):
             variables = [variables]
         
         # Get the object references
-        vars = [cls._cache[var] for var in variables]
+        vars = [cls._cache[var] if isinstance(var, str) else var for var in variables]
 
         # Plot layout
-        if not nrows and not ncols:
+        if (nrows is None) & (ncols is None):
             nrows = len(vars)
             ncols = 1
 
         # Setup plot
-        fig, axes = plt.subplots(nrows=nrows, ncols=ncols)
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, squeeze=False)
 
         # Plot each variable
         for idx, var in enumerate(vars):
             if hasattr(var, 'x1'):
-                var.image(axes=axes[idx], show=False)
+                var.image(axes=axes[idx,0], show=False)
             elif hasattr(var, 'x0'):
-                var.plot(axes=axes[idx], show=False)
+                var.plot(axes=axes[idx,0], show=False)
 
         # Display the figure
         plt.show()
@@ -161,7 +167,7 @@ class MetaBase(np.ndarray):
             fig, axes = plt.subplots(nrows=1, ncols=1)
         
         # Convert time to seconds and reshape to 2D arrays
-        x0 = (self.x0 - self.x0[0]).astype('timedelta64[s]')
+        x0 = self.x0 - self.x0[0]
         x0 = np.array([t.item().total_seconds() for t in x0])
         x1 = self.x1
         if x0.ndim == 1:
@@ -208,7 +214,8 @@ class MetaBase(np.ndarray):
             axes = plt.axes()
         
         # Plot the data
-        axes.plot(self.x0.astype(dt.datetime), self)
+        axes.plot(self.x0.astype('O', subok=False), self)
+        axes.figure.autofmt_xdate()
         
         # Set plot attributes
         self._plot_apply_xattrs(axes, self.x0)
@@ -231,6 +238,12 @@ class MetaBase(np.ndarray):
             del MetaCache[self]
         except ValueError:
             pass
+    
+    
+    def _expand_elipsis(self, idx):
+        out = []
+        for item in idx:
+            pass    
     
     
     @staticmethod
@@ -390,15 +403,15 @@ def _from_cdf_read_var(cdf, varname):
         # Read the data
         cdf_var = cdf[varname]
         if cdf_var.type() in time_types:
-            var = pyarray.MetaTime(cdf_var[...])
+            var = pyarray.metatime.MetaTime(cdf_var[...])
         else:
-            var = pyarray.MetaArray(cdf_var[...])
+            var = pyarray.metaarray.MetaArray(cdf_var[...])
     
         # Append to existing data
         #   TODO: Add ufunc to MetaBase to np.append returns MetaBase sub/class
         if varname in cdf_vars and cdf_var.rv():
             d0 = cdf_vars[varname]
-            var = np.append(var, d0, 0).view(type(var))
+            var = np.append(d0, var, 0).view(type(var))
         
         var.name = varname
         var.rec_vary = cdf_var.rv()
