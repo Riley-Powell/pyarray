@@ -2,12 +2,12 @@
 #   https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
 import numpy as np
 import datetime as dt
-import pyarray
+from pyarray.metaarray import metabase
 import re
 import pytz
 import pdb
 
-class MetaTime(pyarray.MetaBase):
+class MetaTime(metabase.MetaBase):
     
     def __new__(cls, x, units='us', **kwargs):
         """
@@ -27,38 +27,42 @@ class MetaTime(pyarray.MetaBase):
         obj : object
             New object instance of class ``cls``.
         """
-        
         # Create a datetime64 object
-        obj = super(MetaTime, cls).__new__(cls, x, dtype='datetime64['+units+']', **kwargs)
+        obj = super().__new__(cls, x, dtype='datetime64['+units+']', **kwargs)
         
         # Finally, we must return the newly created object:
         return obj
+    
+    
+    def __sub__(self, b):
+        result = super().__sub__(b)
+        return np.array(result).astype(result.dtype.name)
 
-    
-    def __array_finalize__(self, obj):
-        if obj is None: return
-        
-        super(MetaTime, self).__array_finalize__(obj)
-    
-    
+
     def __getitem__(self, idx):
         
-        # Try to access as if indices were given
         try:
-            return super(MetaTime, self).__getitem__(idx)
+            return super().__getitem__(idx)
         
         # IndexError raised when idx is a datetime64 object
         # TypeError raised when slice contains datetime64 object
-        except IndexError as e:
+        except IndexError:
             if type(idx) is int:
                 raise
         
-        except (TypeError) as e:
+        except TypeError:
             pass
         
         s = self.get_item_index(idx)
         
         return self[s]
+    
+    def __setattr__(self, name, value):
+        if (name[0] == 'x') and (name[1:].isdigit()):
+            raise AttributeError('dependent variable attributes ' \
+                                 'xN with N=int not allowed')
+
+        super().__setattr__(name, value)
     
     
     def get_item_index(self, idx):
@@ -71,16 +75,18 @@ class MetaTime(pyarray.MetaBase):
             #   Why is this not handled properly in __getitem__?
             #   Test: t[slice(None, None, None)]
             if idx.start is None:
-                i1 = 1
+                i1 = 0
             else:
                 i1 = self.get_closest_value(idx.start, greater=True)[1]
             
             if idx.stop is None:
                 i2 = len(self)
             else:
-                i2 = self.get_closest_value(idx.stop, lesser=True)[1]
+                # Add one so that idx.stop is included in the results
+                # when self is sliced: self[i1:i2] is inclusive: [i1, i2]
+                i2 = self.get_closest_value(idx.stop, lesser=True)[1] + 1
             
-            s = slice(i1, i2+1, idx.step)
+            s = slice(i1, i2, idx.step)
         
         # Turn list of times into list of indices
         elif type(idx) is list:
@@ -89,7 +95,7 @@ class MetaTime(pyarray.MetaBase):
         
         # Do not except tuples (which would be multi-dimensional indexing)
         elif type(idx) is tuple:
-            raise ValueError('Indices must be scalar, list, or slice, not tuple.')
+            raise IndexError('too many indices for array')
         
         # Turn time into index
         else:
@@ -216,10 +222,7 @@ class MetaTime(pyarray.MetaBase):
         return val2 if target - val1 >= val2 - target else val1
     
     def find_closest_index(self, idx1, idx2, target):
-        try:
-            return idx2 if target - self[idx1] >= self[idx2] - target else idx1
-        except:
-            pdb.set_trace()
+        return idx2 if target - self[idx1] >= self[idx2] - target else idx1
     
 
 def test_get_item():
@@ -305,7 +308,7 @@ def main1():
     assert t.iscached(), 'MetaTime instance is not cached.'
     
     # Check what is in the cache
-    pyarray.MetaBase.names()
+    metabase.MetaBase.names()
 
 #    if isinstance(
     
